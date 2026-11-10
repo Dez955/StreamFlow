@@ -217,8 +217,7 @@ pub async fn fetch(ytdlp: &Path, url: &str, cookies: Option<&str>) -> Result<Vid
         .await
         .map_err(|e| UserError::new(ErrorKind::ToolMissing, format!("cannot run yt-dlp: {e}")))?;
     if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        return Err(UserError::new(ErrorKind::Other, stderr.trim()));
+        return Err(crate::errors_classify::classify_stderr(&String::from_utf8_lossy(&out.stderr)));
     }
     parse_probe(&String::from_utf8_lossy(&out.stdout))
 }
@@ -332,5 +331,10 @@ mod tests {
         assert_eq!(info.id, "c1");
         let err = fetch(&bad, "https://site.example/v/c1", None).await.unwrap_err();
         assert!(err.detail.contains("boom"), "{err:?}");
+        let login = dir.path().join("login.sh");
+        std::fs::write(&login, "#!/bin/sh\necho 'ERROR: Sign in to confirm' >&2\nexit 1\n").unwrap();
+        std::fs::set_permissions(&login, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let err = fetch(&login, "https://site.example/v/c1", None).await.unwrap_err();
+        assert_eq!(err.kind, ErrorKind::LoginRequired);
     }
 }
