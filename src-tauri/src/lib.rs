@@ -52,6 +52,16 @@ pub fn run() {
             commands::tools_install,
             commands::tools_update,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running StreamFlow");
+        .build(tauri::generate_context!())
+        .expect("error while building StreamFlow")
+        .run(|app, event| {
+            // Quitting must not leave yt-dlp / ffmpeg downloading in the background.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(state) = app.try_state::<AppState>() {
+                    if state.queue.stop_all() > 0 {
+                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                    }
+                }
+            }
+        });
 }

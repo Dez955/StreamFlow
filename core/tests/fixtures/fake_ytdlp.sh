@@ -19,6 +19,15 @@ case "$last" in
     echo "sf-progress:1|1|NA|NA|NA"
     ;;
   */exists)
-    echo "[download] /tmp/My Clip.mp4 has already been downloaded"
+    # real yt-dlp (--print implies --quiet) only prints the after_move line for an existing file
+    echo "sf-file:/tmp/My Clip.mp4"
+    ;;
+  */tree)
+    # emulate yt-dlp spawning ffmpeg: a child process that must not outlive a cancel
+    prev=""; for a; do [ "$prev" = "-o" ] && outdir=$(dirname "$a"); prev=$a; done
+    sleep 30 &
+    echo $! > "$outdir/child.pid"
+    echo "sf-post:Merger"
+    wait
     ;;
 esac

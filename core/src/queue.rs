@@ -226,6 +226,29 @@ impl Queue {
         schedule(&self.inner);
     }
 
+    /// Stop every unfinished job (used when the app quits). Returns how many were running.
+    pub fn stop_all(&self) -> usize {
+        with(&self.inner, |st, changes| {
+            let mut running = 0;
+            for job in st.jobs.iter_mut() {
+                if matches!(
+                    job.snap.state,
+                    JobState::Queued | JobState::Downloading | JobState::Processing | JobState::Paused
+                ) {
+                    if is_running(job.snap.state) {
+                        running += 1;
+                    }
+                    if let Some(t) = job.cancel.take() {
+                        t.cancel();
+                    }
+                    job.snap.state = JobState::Stopped;
+                    changes.push(job.snap.clone());
+                }
+            }
+            running
+        })
+    }
+
     pub fn list(&self) -> Vec<JobSnapshot> {
         self.inner.state.lock().unwrap().jobs.iter().map(|j| j.snap.clone()).collect()
     }
@@ -436,6 +459,24 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         assert_eq!(runner.cancelled.lock().unwrap().as_slice(), ["a"]);
+    }
+
+    #[tokio::test]
+    async fn stop_all_cancels_running_jobs_and_reports_how_many() {
+        let (q, runner, _) = setup(2);
+        let (a, b, c) = (q.add(req("a")), q.add(req("b")), q.add(req("c")));
+        wait_for(&q, &a, JobState::Downloading).await;
+        wait_for(&q, &b, JobState::Downloading).await;
+        assert_eq!(q.stop_all(), 2);
+        for id in [&a, &b, &c] {
+            wait_for(&q, id, JobState::Stopped).await;
+        }
+        for _ in 0..100 {
+            if runner.cancelled.lock().unwrap().len() == 2 { break; }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(runner.cancelled.lock().unwrap().len(), 2);
+        assert_eq!(q.stop_all(), 0);
     }
 
     #[tokio::test]

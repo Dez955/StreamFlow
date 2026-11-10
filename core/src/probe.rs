@@ -204,18 +204,32 @@ pub fn estimate_total(info: &VideoInfo, v: &VideoSelect, a: &AudioSelect) -> Opt
     parts.into_iter().sum::<Option<u64>>()
 }
 
+/// How long `yt-dlp -J` may take before the probe gives up.
+pub const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
+
 /// Run `yt-dlp -J` for one URL.
 pub async fn fetch(ytdlp: &Path, url: &str, cookies: Option<&str>) -> Result<VideoInfo, UserError> {
+    fetch_with_timeout(ytdlp, url, cookies, PROBE_TIMEOUT).await
+}
+
+pub async fn fetch_with_timeout(
+    ytdlp: &Path,
+    url: &str,
+    cookies: Option<&str>,
+    limit: std::time::Duration,
+) -> Result<VideoInfo, UserError> {
     let mut cmd = tokio::process::Command::new(ytdlp);
-    cmd.args(["-J", "--no-playlist", "--playlist-items", "1"]);
+    cmd.args(["-J", "--no-playlist", "--playlist-items", "1", "--socket-timeout", "20"]);
     if let Some(browser) = cookies {
         cmd.args(["--cookies-from-browser", browser]);
     }
     cmd.arg(url).stdin(Stdio::null()).kill_on_drop(true);
-    let out = cmd
-        .output()
-        .await
-        .map_err(|e| UserError::new(ErrorKind::ToolMissing, format!("cannot run yt-dlp: {e}")))?;
+    crate::proc::configure(&mut cmd);
+    let out = match tokio::time::timeout(limit, cmd.output()).await {
+        Ok(result) => result
+            .map_err(|e| UserError::new(ErrorKind::ToolMissing, format!("cannot run yt-dlp: {e}")))?,
+        Err(_) => return Err(UserError::new(ErrorKind::Network, "timed out waiting for yt-dlp")),
+    };
     if !out.status.success() {
         return Err(crate::errors_classify::classify_stderr(&String::from_utf8_lossy(&out.stderr)));
     }
@@ -336,5 +350,12 @@ mod tests {
         std::fs::set_permissions(&login, std::fs::Permissions::from_mode(0o755)).unwrap();
         let err = fetch(&login, "https://site.example/v/c1", None).await.unwrap_err();
         assert_eq!(err.kind, ErrorKind::LoginRequired);
+        let slow = dir.path().join("slow.sh");
+        std::fs::write(&slow, "#!/bin/sh\nexec sleep 30\n").unwrap();
+        std::fs::set_permissions(&slow, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let started = std::time::Instant::now();
+        let err = fetch_with_timeout(&slow, "https://site.example/v/c1", None, std::time::Duration::from_millis(300)).await.unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Network, "{err:?}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(3));
     }
 }

@@ -15,3 +15,6 @@ hex = "0.4"
 async-trait = "0.1"
 tokio-util = "0.7"
 flate2 = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

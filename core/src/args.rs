@@ -16,6 +16,9 @@ pub fn build_download_args(
 ) -> Vec<String> {
     let mut a: Vec<String> = vec![
         "--no-playlist".into(),
+        // `--no-playlist` alone only affects video+list URLs; a pure playlist URL still needs this.
+        "--playlist-items".into(),
+        "1".into(),
         "--newline".into(),
         "--progress".into(),
         "--no-warnings".into(),
@@ -54,7 +57,12 @@ pub fn build_download_args(
                 AudioSelect::Format(id) => (id.as_str(), false),
                 AudioSelect::Best => ("ba", true),
             };
-            let fallback = if v_best || a_best { "/b" } else { "" };
+            // An explicit resolution must survive muxed-only sources, where `ba` matches nothing.
+            let fallback = match (v_best, a_best) {
+                (true, _) => "/b".to_string(),
+                (false, true) => format!("/{v}/b"),
+                (false, false) => String::new(),
+            };
             a.extend(["-f".into(), format!("{v}+{au}{fallback}")]);
             let merge = match container {
                 Container::Mp4 => "mp4",
@@ -119,7 +127,7 @@ mod tests {
         let a = build(&req(VideoSelect::Format("313".into()), AudioSelect::Format("251".into())), Container::Mp4);
         assert!(has_pair(&a, "-f", "313+251"), "{a:?}");
         let b = build(&req(VideoSelect::Format("313".into()), AudioSelect::Best), Container::Mp4);
-        assert!(has_pair(&b, "-f", "313+ba/b"), "{b:?}");
+        assert!(has_pair(&b, "-f", "313+ba/313/b"), "chosen resolution must survive muxed-only sources: {b:?}");
         let c = build(&req(VideoSelect::Best, AudioSelect::Format("251".into())), Container::Mp4);
         assert!(has_pair(&c, "-f", "bv*+251/b"), "{c:?}");
     }
@@ -161,6 +169,7 @@ mod tests {
     #[test]
     fn always_no_playlist_and_machine_readable_output() {
         let a = build(&req(VideoSelect::Best, AudioSelect::Best), Container::Mp4);
+        assert!(has_pair(&a, "--playlist-items", "1"), "a pure playlist URL must yield one video: {a:?}");
         for flag in ["--no-playlist", "--newline", "--progress"] {
             assert!(a.contains(&flag.to_string()), "{flag} missing in {a:?}");
         }

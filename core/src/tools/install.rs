@@ -48,7 +48,23 @@ pub async fn install_from(
     tools_dir: &Path,
     on_progress: &(dyn Fn(u64, Option<u64>) + Send + Sync),
 ) -> Result<PathBuf, UserError> {
-    let client = reqwest::Client::builder().user_agent("StreamFlow").build().map_err(net)?;
+    install_from_with(src, file_name, tools_dir, on_progress, std::time::Duration::from_secs(30)).await
+}
+
+/// Like [`install_from`], with a limit on how long the server may stay silent.
+pub async fn install_from_with(
+    src: &ToolSource,
+    file_name: &str,
+    tools_dir: &Path,
+    on_progress: &(dyn Fn(u64, Option<u64>) + Send + Sync),
+    read_timeout: std::time::Duration,
+) -> Result<PathBuf, UserError> {
+    let client = reqwest::Client::builder()
+        .user_agent("StreamFlow")
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .read_timeout(read_timeout)
+        .build()
+        .map_err(net)?;
     let expected = expected_hash(&client, &src.sha256).await?;
     std::fs::create_dir_all(tools_dir).map_err(other)?;
 
@@ -200,6 +216,22 @@ mod tests {
         assert!(install_from(&src, "yt-dlp", dir.path(), &noop).await.is_ok());
         let missing = ToolSource { sha256: Sha256Source::SumsFile { url: format!("{base}/sums"), name: "nope".into() }, ..src };
         assert!(install_from(&missing, "yt-dlp", dir.path(), &noop).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn stalled_server_times_out_instead_of_hanging() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for s in listener.incoming().flatten() { held.push(s); } // accept, never answer
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let src = ToolSource { url: format!("{base}/x"), sha256: Sha256Source::Fixed("0".repeat(64)), gunzip: false };
+        let started = std::time::Instant::now();
+        let err = install_from_with(&src, "x", dir.path(), &noop, std::time::Duration::from_millis(300)).await.unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Network, "{err:?}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
     }
 
     #[tokio::test]

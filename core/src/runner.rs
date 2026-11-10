@@ -10,6 +10,7 @@ use crate::args::build_download_args;
 use crate::error::{ErrorKind, UserError};
 use crate::errors_classify::classify_stderr;
 use crate::model::{Container, DownloadRequest, Progress};
+use crate::proc;
 use crate::progress::{parse_line, LineEvent};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -63,14 +64,16 @@ impl JobRunner for YtDlpRunner {
             self.ffmpeg.as_deref(),
             self.cookies.as_deref(),
         );
-        let mut child = Command::new(&self.ytdlp)
-            .args(&args)
+        let mut cmd = Command::new(&self.ytdlp);
+        cmd.args(&args)
             .env("PYTHONIOENCODING", "utf-8")
             .env("PYTHONUTF8", "1")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
+            .kill_on_drop(true);
+        proc::configure(&mut cmd);
+        let mut child = cmd
             .spawn()
             .map_err(|e| failed(ErrorKind::ToolMissing, format!("cannot run yt-dlp: {e}")))?;
 
@@ -89,7 +92,7 @@ impl JobRunner for YtDlpRunner {
             line.clear();
             tokio::select! {
                 _ = cancel.cancelled() => {
-                    let _ = child.kill().await;
+                    proc::terminate(&mut child, proc::GRACE).await;
                     err_task.abort();
                     return Err(RunError::Cancelled);
                 }
@@ -110,7 +113,7 @@ impl JobRunner for YtDlpRunner {
 
         let status = tokio::select! {
             _ = cancel.cancelled() => {
-                let _ = child.kill().await;
+                proc::terminate(&mut child, proc::GRACE).await;
                 err_task.abort();
                 return Err(RunError::Cancelled);
             }
@@ -219,6 +222,31 @@ mod tests {
         let res = runner(dir.path()).run(&req("slow"), &|_| {}, token).await;
         assert!(matches!(res, Err(RunError::Cancelled)), "{res:?}");
         assert!(started.elapsed() < Duration::from_secs(2), "child was not killed promptly");
+    }
+
+    fn alive(pid: &str) -> bool {
+        std::process::Command::new("kill").args(["-0", pid]).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+    }
+
+    #[tokio::test]
+    async fn cancel_kills_the_whole_process_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let token = CancellationToken::new();
+        let t = token.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            t.cancel();
+        });
+        let res = runner(dir.path()).run(&req("tree"), &|_| {}, token).await;
+        assert!(matches!(res, Err(RunError::Cancelled)), "{res:?}");
+        let pid = std::fs::read_to_string(dir.path().join("child.pid")).unwrap().trim().to_string();
+        let mut gone = false;
+        for _ in 0..40 {
+            if !alive(&pid) { gone = true; break; }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        if !gone { let _ = std::process::Command::new("kill").args(["-9", &pid]).status(); }
+        assert!(gone, "child process {pid} (ffmpeg stand-in) survived the cancel");
     }
 
     #[tokio::test]
