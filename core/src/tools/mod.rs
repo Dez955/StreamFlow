@@ -94,7 +94,7 @@ pub fn locate_in(tool: ToolId, managed_dir: &Path, path_var: Option<&OsStr>) -> 
 }
 
 /// PATH plus the folders GUI apps on macOS do not inherit (Homebrew).
-fn search_path() -> OsString {
+pub fn search_path() -> OsString {
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|v| std::env::split_paths(&v).collect())
         .unwrap_or_default();
@@ -130,6 +130,7 @@ pub fn manual_hint(tool: ToolId, p: Platform) -> String {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
