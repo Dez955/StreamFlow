@@ -97,6 +97,12 @@ pub fn set_settings(settings: Settings, state: State<'_, AppState>) -> Result<Se
     Ok(saved)
 }
 
+/// The command a user can run by hand when automatic installation is impossible.
+#[tauri::command]
+pub fn tools_hint(tool: ToolId) -> String {
+    streamflow_core::tools::manual_hint(tool, Platform::current())
+}
+
 #[tauri::command]
 pub fn tools_status(state: State<'_, AppState>) -> ToolsStatus {
     state.ctx.tools_status()
@@ -126,6 +132,12 @@ pub async fn tools_update(app: AppHandle, state: State<'_, AppState>) -> Result<
 mod tests {
     use super::*;
     use streamflow_core::probe::parse_probe;
+
+    #[test]
+    fn tools_hint_names_the_tool() {
+        assert!(tools_hint(ToolId::YtDlp).contains("yt-dlp"));
+        assert!(tools_hint(ToolId::Ffmpeg).contains("ffmpeg"));
+    }
 
     #[test]
     fn probe_payload_has_choices_and_best_estimate() {

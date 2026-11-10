@@ -1,10 +1,16 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import * as api from './lib/api';
-  import { tr } from './lib/i18n';
+  import { setLanguage, tr } from './lib/i18n';
+  import { toUserError } from './lib/errors';
   import { normalizeUrl } from './lib/url';
   import MediaCard from './components/MediaCard.svelte';
+  import QueuePanel from './components/QueuePanel.svelte';
+  import SettingsDialog from './components/SettingsDialog.svelte';
+  import StatusBar from './components/StatusBar.svelte';
+  import ToolsBanner from './components/ToolsBanner.svelte';
   import UrlBar from './components/UrlBar.svelte';
-  import type { DownloadRequest, UserError, VideoProbe } from './lib/types';
+  import type { DownloadRequest, JobSnapshot, Settings, ToolsStatus, UserError, VideoProbe } from './lib/types';
 
   type Phase =
     | { kind: 'idle' }
@@ -14,11 +20,39 @@
 
   let phase = $state<Phase>({ kind: 'idle' });
   let input = $state('');
+  let jobs = $state<JobSnapshot[]>([]);
+  let settings = $state<Settings | null>(null);
+  let tools = $state<ToolsStatus | null>(null); // unknown until the backend answers
+  let showSettings = $state(false);
 
-  function toUserError(e: unknown): UserError {
-    if (e && typeof e === 'object' && 'kind' in e) return e as UserError;
-    return { kind: 'other', detail: String(e) };
+  function applySettings(s: Settings) {
+    setLanguage(s.language);
+    if (s.theme === 'auto') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = s.theme;
   }
+
+  function upsert(job: JobSnapshot) {
+    jobs = jobs.some((j) => j.id === job.id) ? jobs.map((j) => (j.id === job.id ? job : j)) : [...jobs, job];
+  }
+
+  onMount(() => {
+    let off: (() => void) | undefined;
+    let alive = true;
+    (async () => {
+      const unlisten = await api.onJobChanged(upsert);
+      if (alive) off = unlisten;
+      else unlisten();
+      const [s, existing, status] = await Promise.all([api.getSettings(), api.listJobs(), api.toolsStatus()]);
+      settings = s;
+      applySettings(s);
+      for (const j of existing) upsert(j);
+      tools = status;
+    })().catch(() => {});
+    return () => {
+      alive = false;
+      off?.();
+    };
+  });
 
   async function analyze(raw: string) {
     const url = normalizeUrl(raw);
@@ -43,6 +77,17 @@
       phase = { kind: 'error', error: toUserError(e) };
     }
   }
+
+  async function saveSettings(next: Settings) {
+    try {
+      settings = await api.setSettings(next);
+      applySettings(settings);
+      showSettings = false;
+    } catch (e) {
+      phase = { kind: 'error', error: toUserError(e) };
+      showSettings = false;
+    }
+  }
 </script>
 
 <main class="app">
@@ -53,6 +98,10 @@
 
   <UrlBar bind:value={input} onsubmit={analyze} busy={phase.kind === 'analyzing'} />
 
+  {#if tools}
+    <ToolsBanner status={tools} onupdated={(s) => (tools = s)} />
+  {/if}
+
   {#if phase.kind === 'analyzing'}
     <p class="status">{$tr('analyzing')}</p>
   {:else if phase.kind === 'error'}
@@ -62,4 +111,17 @@
       <MediaCard probe={phase.probe} url={phase.url} ondownload={startDownload} />
     {/key}
   {/if}
+
+  <QueuePanel {jobs} onremove={(id) => (jobs = jobs.filter((j) => j.id !== id))} />
+  <StatusBar {jobs} onsettings={() => (showSettings = true)} />
 </main>
+
+{#if showSettings && settings && tools}
+  <SettingsDialog
+    {settings}
+    {tools}
+    onsave={saveSettings}
+    onclose={() => (showSettings = false)}
+    ontools={(s) => (tools = s)}
+  />
+{/if}

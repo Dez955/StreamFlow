@@ -28,3 +28,5 @@ export const onJobChanged = (cb: (job: JobSnapshot) => void): Promise<UnlistenFn
   listen<JobSnapshot>('job-changed', (e) => cb(e.payload));
 export const onToolsProgress = (cb: (p: ToolsProgress) => void): Promise<UnlistenFn> =>
   listen<ToolsProgress>('tools-progress', (e) => cb(e.payload));
+
+export const toolsHint = (tool: ToolId) => invoke<string>('tools_hint', { tool });

@@ -17,3 +17,24 @@ export const fullProbe: VideoProbe = {
   audio: [{ formatId: '251', abr: 160, codecLabel: 'Opus 160k', sizeBytes: 5_000_000 }],
   estimateBest: 1_505_000_000,
 };
+
+import type { JobSnapshot, JobState, Settings } from './lib/types';
+
+export const job = (state: JobState, extra: Partial<JobSnapshot> = {}): JobSnapshot => ({
+  id: 'job-1',
+  request: { url: 'https://x.y/v', title: 'My video', thumbnail: null, video: 'best', audio: 'best', audioOnlyFormat: 'mp3' },
+  state,
+  progress: null,
+  filePath: null,
+  error: null,
+  ...extra,
+});
+
+export const defaultSettings: Settings = {
+  outputDir: null,
+  language: 'auto',
+  theme: 'auto',
+  maxParallel: 2,
+  cookiesFrom: 'none',
+  container: 'mp4',
+};

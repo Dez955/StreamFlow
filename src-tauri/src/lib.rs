@@ -48,6 +48,7 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::tools_status,
+            commands::tools_hint,
             commands::tools_install,
             commands::tools_update,
         ])
