@@ -5,6 +5,7 @@ pub mod model;
 pub mod paths;
 pub mod probe;
 pub mod progress;
+pub mod queue;
 pub mod runner;
 pub mod settings;
 pub mod tools;
