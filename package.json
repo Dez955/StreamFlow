@@ -1,0 +1,14 @@
+{
+  "name": "streamflow",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "test": "npm --prefix ui test && cargo test --workspace"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
