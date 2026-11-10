@@ -1,0 +1,10 @@
+{"_type":"video","id":"abc123","title":"Demo clip","uploader":"Someone","duration":212,"thumbnail":"https://img.example/t.jpg","webpage_url":"https://www.youtube.com/watch?v=abc123",
+"formats":[
+{"format_id":"251","ext":"webm","vcodec":"none","acodec":"opus","height":null,"tbr":160.0,"abr":160.0,"filesize":5000000,"filesize_approx":null},
+{"format_id":"140","ext":"m4a","vcodec":"none","acodec":"mp4a.40.2","height":null,"tbr":128.0,"abr":128.0,"filesize":4000000,"filesize_approx":null},
+{"format_id":"134","ext":"mp4","vcodec":"avc1.4d401e","acodec":"none","height":360,"tbr":300.0,"abr":null,"filesize":30000000,"filesize_approx":null},
+{"format_id":"136","ext":"mp4","vcodec":"avc1.4d401f","acodec":"none","height":720,"tbr":1200.0,"abr":null,"filesize":null,"filesize_approx":150000000},
+{"format_id":"137","ext":"mp4","vcodec":"avc1.640028","acodec":"none","height":1080,"tbr":2500.0,"abr":null,"filesize":300000000,"filesize_approx":null},
+{"format_id":"313","ext":"webm","vcodec":"vp9","acodec":"none","height":2160,"tbr":15000.0,"abr":null,"filesize":1500000000,"filesize_approx":null},
+{"format_id":"18","ext":"mp4","vcodec":"avc1.42001E","acodec":"mp4a.40.2","height":360,"tbr":500.0,"abr":96.0,"filesize":40000000,"filesize_approx":null}
+]}

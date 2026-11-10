@@ -1,0 +1,4 @@
+{"_type":"video","id":"s1","title":"A song","webpage_url":"https://soundcloud.example/s1",
+"formats":[
+{"format_id":"251","ext":"webm","vcodec":"none","acodec":"opus","tbr":160.0,"abr":160.0,"filesize":5000000},
+{"format_id":"140","ext":"m4a","vcodec":"none","acodec":"mp4a.40.2","tbr":128.0,"abr":128.0,"filesize":4000000}]}

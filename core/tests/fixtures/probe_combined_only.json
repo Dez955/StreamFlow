@@ -1,0 +1,2 @@
+{"_type":"video","id":"c1","title":"Muxed only","webpage_url":"https://site.example/v/c1",
+"formats":[{"format_id":"18","ext":"mp4","vcodec":"avc1.42001E","acodec":"mp4a.40.2","height":360,"tbr":500.0,"abr":96.0,"filesize":40000000}]}
