@@ -6,3 +6,4 @@ pub mod paths;
 pub mod probe;
 pub mod progress;
 pub mod settings;
+pub mod tools;
