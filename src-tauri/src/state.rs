@@ -28,6 +28,7 @@ impl AppCtx {
     }
 
     /// Replace the PATH used to look for tools (tests use this for isolation).
+    #[cfg(test)]
     pub fn with_path_var(mut self, path_var: Option<OsString>) -> AppCtx {
         self.path_var = path_var;
         self
